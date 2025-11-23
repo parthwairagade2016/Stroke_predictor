@@ -10,18 +10,17 @@ import plotly.express as px
 # -------------------------------
 # LOAD & PREPARE DATA
 # -------------------------------
-df = pd.read_csv("/mnt/data/Strokes.csv")
-
+df = pd.read_csv("Strokes.csv")   # <<== CORRECTED PATH
 df = df.drop(["id", "gender"], axis=1)
 df = df.fillna(0)
 
-# Manual option mappings (user-friendly)
-work_type_options = {"Private":0, "Self-employed":1, "Govt_job":2, "children":3, "Never_worked":4}
-residence_options = {"Rural":0, "Urban":1}
-ever_married_options = {"No":0, "Yes":1}
-smoking_options = {"formerly smoked":0, "never smoked":1, "smokes":2, "Unknown":3}
+# Manual readable UI options
+work_type_options = {"Private": 0, "Self-employed": 1, "Govt_job": 2, "children": 3, "Never_worked": 4}
+residence_options = {"Rural": 0, "Urban": 1}
+ever_married_options = {"No": 0, "Yes": 1}
+smoking_options = {"formerly smoked": 0, "never smoked": 1, "smokes": 2, "Unknown": 3}
 
-# Encode dataset for training
+# Label encoding for training
 label = LabelEncoder()
 df.work_type = label.fit_transform(df.work_type)
 df.Residence_type = label.fit_transform(df.Residence_type)
@@ -29,12 +28,12 @@ df.ever_married = label.fit_transform(df.ever_married)
 df.smoking_status = label.fit_transform(df.smoking_status)
 
 x = df.drop(["stroke"], axis=1).values
-y = df['stroke'].values
+y = df["stroke"].values
 
 xtrain, xtest, ytrain, ytest = train_test_split(x, y, test_size=0.2)
 
 # -------------------------------
-# MODELS
+# TRAIN MODELS
 # -------------------------------
 rf_model = RandomForestClassifier().fit(xtrain, ytrain)
 knn_model = KNeighborsClassifier(n_neighbors=5).fit(xtrain, ytrain)
@@ -42,18 +41,18 @@ knn_model = KNeighborsClassifier(n_neighbors=5).fit(xtrain, ytrain)
 rf_acc = rf_model.score(xtest, ytest)
 knn_acc = knn_model.score(xtest, ytest)
 
-
 # -------------------------------
 # STREAMLIT UI
 # -------------------------------
-st.title("🩺 Stroke Risk Predictor (RF + KNN Hybrid)")
-st.write("Enter patient details to predict stroke risk.")
+st.title("🩺 Stroke Risk Predictor (Random Forest + KNN)")
+st.write("Fill in patient details to estimate stroke likelihood.")
 
+# Sidebar accuracy
 st.sidebar.title("📊 Model Accuracy")
-st.sidebar.write(f"**Random Forest Accuracy:** {round(rf_acc*100,2)}%")
-st.sidebar.write(f"**KNN Accuracy:** {round(knn_acc*100,2)}%")
+st.sidebar.write(f"**Random Forest Accuracy:** {round(rf_acc * 100, 2)}%")
+st.sidebar.write(f"**KNN Accuracy:** {round(knn_acc * 100, 2)}%")
 
-patient_name = st.text_input("Patient Name", "")
+patient_name = st.text_input("Patient Name")
 
 col1, col2 = st.columns(2)
 
@@ -74,7 +73,7 @@ with col2:
 # PREDICTION
 # -------------------------------
 if st.button("Predict Stroke Risk"):
-    
+
     user_data = np.array([[age,
                            1 if hypertension == "Yes" else 0,
                            1 if heart_disease == "Yes" else 0,
@@ -85,14 +84,13 @@ if st.button("Predict Stroke Risk"):
                            residence_options[residence],
                            smoking_options[smoking_status]]])
 
-    # PROBABILITY (from Random Forest only; RF can predict_proba)
     prob = rf_model.predict_proba(user_data)[0][1]
     percentage = round(prob * 100, 2)
 
     st.subheader(f"🧬 Stroke Risk for **{patient_name}**")
     st.write(f"### 🔍 Predicted Probability: **{percentage}%**")
 
-    # RISK LEVEL MESSAGE
+    # Risk messages
     if percentage >= 70:
         st.error("🚨 High Risk! Immediate medical attention recommended.")
     elif percentage >= 25:
@@ -103,11 +101,12 @@ if st.button("Predict Stroke Risk"):
         st.success("🟢 Low Risk.")
 
     # -------------------------------
-    # INTERACTIVE PIE CHART (PLOTLY)
+    # INTERACTIVE PIE CHART
     # -------------------------------
-    features = ["Age", "Hypertension", "Heart Disease", "Ever Married",
-                "Avg Glucose", "BMI", "Work Type", "Residence", "Smoking Status"]
-
+    features = [
+        "Age", "Hypertension", "Heart Disease", "Ever Married",
+        "Avg Glucose", "BMI", "Work Type", "Residence", "Smoking Status"
+    ]
     values = user_data[0]
 
     pie_df = pd.DataFrame({
