@@ -35,7 +35,10 @@ xtrain, xtest, ytrain, ytest = train_test_split(X, y, test_size=0.2, random_stat
 # -------------------------------------------
 # Decision Tree
 # -------------------------------------------
+
 from sklearn.tree import DecisionTreeClassifier
+from sklearn.metrics import accuracy_score  # ← ADD THIS
+
 model_dt = DecisionTreeClassifier()
 model_dt.fit(xtrain, ytrain)
 
