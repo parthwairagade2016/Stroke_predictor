@@ -1,178 +1,71 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
-import plotly.express as px
 from sklearn.preprocessing import LabelEncoder
+from sklearn.model_selection import train_test_split
+from sklearn.tree import DecisionTreeClassifier
 from sklearn.ensemble import RandomForestClassifier
+import matplotlib.pyplot as plt
 
-st.set_page_config(page_title="Stroke Predictor", layout="wide")
+# Load and preprocess data
+df = pd.read_csv("../Datasets/Strokes.csv")
+df = df.drop(["id", "gender"], axis=1)
+df = df.fillna(0)
+label = LabelEncoder()
+df.work_type = label.fit_transform(df.work_type)
+df.Residence_type = label.fit_transform(df.Residence_type)
+df.ever_married = label.fit_transform(df.ever_married)
+df.smoking_status = label.fit_transform(df.smoking_status)
 
-# ---------------------------------------------
-# LOAD DATA
-# ---------------------------------------------
-df = pd.read_csv("Strokes.csv")
+x = df.drop(["stroke"], axis=1).values
+y = df['stroke'].values
 
-# Drop ID + gender columns if present
-for col in ["id", "gender"]:
-    if col in df.columns:
-        df = df.drop(col, axis=1)
+xtrain, xtest, ytrain, ytest = train_test_split(x, y, test_size=0.2)
 
-# ---------------------------------------------
-# ENCODERS
-# ---------------------------------------------
-work_enc = LabelEncoder()
-res_enc = LabelEncoder()
-married_enc = LabelEncoder()
-smoke_enc = LabelEncoder()
+# Models
+dt_model = DecisionTreeClassifier()
+dt_model.fit(xtrain, ytrain)
+rf_model = RandomForestClassifier()
+rf_model.fit(xtrain, ytrain)
 
-df["work_type"] = work_enc.fit_transform(df["work_type"])
-df["Residence_type"] = res_enc.fit_transform(df["Residence_type"])
-df["ever_married"] = married_enc.fit_transform(df["ever_married"])
-df["smoking_status"] = smoke_enc.fit_transform(df["smoking_status"])
+# Streamlit UI
+st.title("Stroke Predictor App")
+st.write("Predict stroke probability and analyse patient risk.")
 
-# ---------------------------------------------
-# FEATURES + TARGET
-# ---------------------------------------------
-X = df.drop("stroke", axis=1)
-y = df["stroke"]
+patient_name = st.text_input("Enter Patient Name")
 
-# ---------------------------------------------
-# TRAIN MODEL
-# ---------------------------------------------
-model = RandomForestClassifier(random_state=42)
-model.fit(X, y)
+age = st.number_input("Age", 0, 120, 30)
+hypertension = st.selectbox("Hypertension (0 = No, 1 = Yes)", [0, 1])
+heart_disease = st.selectbox("Heart Disease (0 = No, 1 = Yes)", [0, 1])
+ever_married = st.selectbox("Ever Married (Yes = 1, No = 0)", [0, 1])
+avg_glucose = st.number_input("Average Glucose Level", 0.0, 300.0, 90.0)
+bmi = st.number_input("BMI", 0.0, 60.0, 25.0)
+work_type = st.selectbox("Work Type (Encoded)", [0,1,2,3,4])
+residence = st.selectbox("Residence Type (0 = Rural, 1 = Urban)", [0,1])
+smoking_status = st.selectbox("Smoking Status (Encoded)", [0,1,2,3])
 
-feature_importance = model.feature_importances_
-features = X.columns
+if st.button("Predict Stroke Risk"):
+    user_data = np.array([[age, hypertension, heart_disease, ever_married,
+                           avg_glucose, bmi, work_type, residence, smoking_status]])
+    prob = rf_model.predict_proba(user_data)[0][1]
+    percentage = round(prob * 100, 2)
 
-# ---------------------------------------------
-# STREAMLIT UI
-# ---------------------------------------------
-st.title("🧠 AI-Powered Stroke Prediction System")
-st.markdown("### Predict stroke probability and visualize factor contributions interactively.")
+    st.subheader(f"Stroke Risk for {patient_name}:")
+    st.write(f"**Predicted Stroke Probability:** {percentage}%")
 
-col1, col2 = st.columns(2)
+    if percentage >= 70:
+        st.error("High Risk! Immediate medical consultation recommended.")
+    elif percentage >= 40:
+        st.warning("Moderate Risk. Monitor health closely.")
+    else:
+        st.success("Low Risk.")
 
-# ------------------------------
-# INPUTS LEFT SIDE
-# ------------------------------
-with col1:
-    patient_name = st.text_input("👤 Enter Patient Name", placeholder="e.g. John Doe")
+    # Pie chart preparation
+    features = ["age", "hypertension", "heart_disease", "ever_married",
+                "avg_glucose", "bmi", "work_type", "residence", "smoking_status"]
+    values = user_data[0]
 
-    age = st.number_input("Age", min_value=1, max_value=120, value=45)
-    hypertension = st.selectbox("Hypertension", ["Yes", "No"])
-    heart_disease = st.selectbox("Heart Disease", ["Yes", "No"])
-
-# ------------------------------
-# INPUTS RIGHT SIDE
-# ------------------------------
-with col2:
-    ever_married_input = st.selectbox("Ever Married", married_enc.classes_)
-    work_type_input = st.selectbox("Work Type", work_enc.classes_)
-    residence_input = st.selectbox("Residence Type", res_enc.classes_)
-    smoking_input = st.selectbox("Smoking Status", smoke_enc.classes_)
-    avg_glucose = st.number_input("Average Glucose Level", min_value=0.0, value=100.0)
-    bmi = st.number_input("BMI", min_value=0.0, value=25.0)
-
-# ---------------------------------------------
-# ENCODE USER INPUT
-# ---------------------------------------------
-married_val = married_enc.transform([ever_married_input])[0]
-work_val = work_enc.transform([work_type_input])[0]
-res_val = res_enc.transform([residence_input])[0]
-smoke_val = smoke_enc.transform([smoking_input])[0]
-
-hypertension_val = 1 if hypertension == "Yes" else 0
-heart_val = 1 if heart_disease == "Yes" else 0
-
-# ---------------------------------------------
-# PREDICT BUTTON
-# ---------------------------------------------
-st.markdown("### 🔍 Click Predict to Analyze")
-
-if st.button("✨ Predict Now"):
-    
-    input_data = np.array([[
-        age,
-        hypertension_val,
-        heart_val,
-        married_val,
-        work_val,
-        res_val,
-        avg_glucose,
-        bmi,
-        smoke_val
-    ]])
-
-    prediction = model.predict(input_data)[0]
-    probability = model.predict_proba(input_data)[0][1] * 100
-
-    # ---------------------------------------------
-    # CUSTOM RISK SCALE (YOUR REQUEST)
-    # ---------------------------------------------
-
-    if probability < 25:
-        st.markdown(
-            f"<h2 style='color:#FFD700;'>🟡 Quite Risky for {patient_name}</h2>",
-            unsafe_allow_html=True,
-        )
-
-    elif 25 <= probability < 35:
-        st.markdown(
-            f"<h2 style='color:#FFA500;'>⚠️ Slight Stroke Risk for {patient_name}</h2>",
-            unsafe_allow_html=True,
-        )
-
-    elif 35 <= probability < 40:
-        st.markdown(
-            f"<h2 style='color:#FF8C00;'>🟠 Medium Stroke Risk for {patient_name}</h2>",
-            unsafe_allow_html=True,
-        )
-
-    elif 40 <= probability < 60:
-        st.markdown(
-            f"<h2 style='color:#FF4500;'>🔥 High Stroke Risk for {patient_name}</h2>",
-            unsafe_allow_html=True,
-        )
-
-    else:  # 60%+
-        st.markdown(
-            f"<h2 style='color:#FF0000;'>🚨 CRITICAL Stroke Risk for {patient_name}</h2>",
-            unsafe_allow_html=True,
-        )
-
-    st.metric(label="Probability of Stroke", value=f"{probability:.2f}%")
-
-    # ---------------------------------------------
-    # INTERACTIVE PIE CHART (PLOTLY)
-    # ---------------------------------------------
-    st.markdown(f"### 📊 Factor Contribution for {patient_name}")
-
-    imp_df = pd.DataFrame({
-        "Feature": features,
-        "Importance": feature_importance
-    }).sort_values(by="Importance", ascending=False)
-
-    fig = px.pie(
-        imp_df,
-        values="Importance",
-        names="Feature",
-        title=f"Stroke Risk Factor Contribution for {patient_name}",
-        hole=0.45,
-    )
-
-    fig.update_traces(
-        textposition="inside",
-        textinfo="percent+label",
-        pull=[0.05] * len(imp_df),
-        hoverinfo="label+percent",
-    )
-
-    fig.update_layout(
-        showlegend=True,
-        template="plotly_dark",
-        margin=dict(t=50, b=20),
-        transition_duration=500
-    )
-
-    st.plotly_chart(fig, use_container_width=True)
+    fig, ax = plt.subplots()
+    ax.pie(values, labels=features, autopct="%1.1f%%")
+    ax.set_title(f"Feature Contribution Breakdown for {patient_name}")
+    st.pyplot(fig)
