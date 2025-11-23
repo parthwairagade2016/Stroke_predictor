@@ -9,7 +9,7 @@ from sklearn.ensemble import RandomForestClassifier
 # ---------------------------------------------
 # LOAD & PREPROCESS DATA
 # ---------------------------------------------
-df = pd.read_csv("../Datasets/Strokes.csv")
+df = pd.read_csv("Strokes.csv")
 
 label = LabelEncoder()
 df["gender"] = label.fit_transform(df["gender"])
