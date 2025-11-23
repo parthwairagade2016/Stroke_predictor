@@ -8,7 +8,7 @@ from sklearn.ensemble import RandomForestClassifier
 import matplotlib.pyplot as plt
 
 # Load and preprocess data
-df = pd.read_csv("../Datasets/Strokes.csv")
+df = pd.read_csv("Strokes.csv")
 df = df.drop(["id", "gender"], axis=1)
 df = df.fillna(0)
 label = LabelEncoder()
