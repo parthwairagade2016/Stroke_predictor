@@ -81,12 +81,34 @@ if st.button("Predict Stroke Risk"):
         st.success("🟢 Low Risk.")
 
     # Pie chart
-    features = ["Age", "Hypertension", "Heart Disease", "Ever Married",
-                "Avg Glucose", "BMI", "Work Type", "Residence", "Smoking Status"]
-    values = user_data[0]
+    import plotly.express as px
 
-    fig, ax = plt.subplots()
-    ax.pie(values, labels=features, autopct="%1.1f%%", startangle=90)
-    ax.set_title(f"Feature Contribution for {patient_name}")
+# Create the pie chart data
+pie_data = {
+    "Feature": [
+        "Age", "Hypertension", "Heart Disease", "Avg Glucose", "BMI",
+        "Work Type", "Residence Type", "Smoking Status", "Ever Married"
+    ],
+    "Value": [
+        age,
+        1 if hypertension == "Yes" else 0,
+        1 if heart_disease == "Yes" else 0,
+        avg_glucose,
+        bmi,
+        work_type_index,
+        residence_type_index,
+        smoking_status_index,
+        1 if ever_married == "Yes" else 0,
+    ]
+}
 
-    st.pyplot(fig)
+fig = px.pie(
+    pie_data,
+    names="Feature",
+    values="Value",
+    title=f"Impact Contribution for {patient_name}",
+    hole=0.4
+)
+
+st.plotly_chart(fig, use_container_width=True)
+
