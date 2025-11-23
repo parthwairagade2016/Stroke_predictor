@@ -3,71 +3,100 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 from sklearn.preprocessing import LabelEncoder
-from sklearn.model_selection import train_test_split
 from sklearn.ensemble import RandomForestClassifier
 
 # ---------------------------------------------
-# LOAD & PREPROCESS DATA
+# LOAD DATA
 # ---------------------------------------------
 df = pd.read_csv("Strokes.csv")
 
-label = LabelEncoder()
-df["gender"] = label.fit_transform(df["gender"])
-df["work_type"] = label.fit_transform(df["work_type"])
-df["Residence_type"] = label.fit_transform(df["Residence_type"])
-df["ever_married"] = label.fit_transform(df["ever_married"])
-df["smoking_status"] = label.fit_transform(df["smoking_status"])
+# ---------------------------------------------
+# LABEL ENCODE CATEGORICAL COLUMNS
+# ---------------------------------------------
+gender_enc = LabelEncoder().fit(df["gender"])
+work_enc = LabelEncoder().fit(df["work_type"])
+residence_enc = LabelEncoder().fit(df["Residence_type"])
+married_enc = LabelEncoder().fit(df["ever_married"])
+smoke_enc = LabelEncoder().fit(df["smoking_status"])
+
+# Encode full dataset
+df["gender"] = gender_enc.transform(df["gender"])
+df["work_type"] = work_enc.transform(df["work_type"])
+df["Residence_type"] = residence_enc.transform(df["Residence_type"])
+df["ever_married"] = married_enc.transform(df["ever_married"])
+df["smoking_status"] = smoke_enc.transform(df["smoking_status"])
 
 X = df.drop("stroke", axis=1)
 y = df["stroke"]
 
-# Train model
-model_rf = RandomForestClassifier()
-model_rf.fit(X, y)
+# ---------------------------------------------
+# TRAIN MODEL
+# ---------------------------------------------
+model = RandomForestClassifier()
+model.fit(X, y)
 
-# Feature importance for pie chart
-feature_importance = model_rf.feature_importances_
+# Feature importance
+feature_importance = model.feature_importances_
 features = X.columns
 
 # ---------------------------------------------
 # STREAMLIT UI
 # ---------------------------------------------
 st.title("🧠 Stroke Prediction System")
-st.write("Enter patient details to calculate stroke probability.")
+st.write("Provide patient information to predict stroke risk.")
 
-# Patient name
+# Patient Name
 patient_name = st.text_input("👤 Patient Name", "")
 
-# User inputs
-age = st.number_input("Age", min_value=0, max_value=120, value=50)
-hypertension = st.selectbox("Hypertension (0 = No, 1 = Yes)", [0, 1])
-heart_disease = st.selectbox("Heart Disease (0 = No, 1 = Yes)", [0, 1])
-avg_glucose = st.number_input("Average Glucose Level", min_value=0.0, value=100.0)
-bmi = st.number_input("BMI", min_value=0.0, value=25.0)
-cholesterol = st.number_input("Cholesterol Level", min_value=0.0, value=180.0)
+# User Inputs
+gender = st.selectbox("Gender", gender_enc.classes_)
+age = st.number_input("Age", min_value=1, max_value=120, value=45)
 
-# Additional categorical fields
-gender = st.selectbox("Gender", df["gender"].unique())
-work_type = st.selectbox("Work Type", df["work_type"].unique())
-residence = st.selectbox("Residence Type", df["Residence_type"].unique())
-married = st.selectbox("Ever Married", df["ever_married"].unique())
-smoking = st.selectbox("Smoking Status", df["smoking_status"].unique())
+hypertension = st.selectbox("Hypertension", ["Yes", "No"])
+heart_disease = st.selectbox("Heart Disease", ["Yes", "No"])
+ever_married = st.selectbox("Ever Married", married_enc.classes_)
+
+work_type = st.selectbox("Work Type", work_enc.classes_)
+residence = st.selectbox("Residence Type", residence_enc.classes_)
+smoking = st.selectbox("Smoking Status", smoke_enc.classes_)
+
+avg_glucose = st.number_input("Average Glucose Level", min_value=0.0, value=120.0)
+bmi = st.number_input("BMI", min_value=0.0, value=28.0)
+
+# Convert Yes/No to numbers
+hypertension_val = 1 if hypertension == "Yes" else 0
+heart_val = 1 if heart_disease == "Yes" else 0
+
+# Encode categorical using original encoders
+gender_val = gender_enc.transform([gender])[0]
+married_val = married_enc.transform([ever_married])[0]
+work_val = work_enc.transform([work_type])[0]
+res_val = residence_enc.transform([residence])[0]
+smoke_val = smoke_enc.transform([smoking])[0]
 
 # ---------------------------------------------
-# PREDICTION
+# PREDICT
 # ---------------------------------------------
 if st.button("🔍 Predict Stroke"):
-    # Create input array
+
+    # Create input vector in correct order
     input_data = np.array([[ 
-        gender, age, hypertension, heart_disease, married,
-        work_type, residence, avg_glucose, bmi, smoking
+        gender_val,
+        age,
+        hypertension_val,
+        heart_val,
+        married_val,
+        work_val,
+        res_val,
+        avg_glucose,
+        bmi,
+        smoke_val
     ]])
 
-    # Predict stroke
-    prediction = model_rf.predict(input_data)[0]
-    probability = model_rf.predict_proba(input_data)[0][1] * 100
+    prediction = model.predict(input_data)[0]
+    probability = model.predict_proba(input_data)[0][1] * 100
 
-    # Response
+    # Display result
     if prediction == 1:
         st.error(f"⚠️ HIGH Stroke Risk for {patient_name}")
     else:
@@ -76,14 +105,13 @@ if st.button("🔍 Predict Stroke"):
     st.subheader(f"Probability of Stroke: **{probability:.2f}%**")
 
     # ---------------------------------------------
-    # PIE CHART BASED ON FEATURE IMPORTANCE
+    # PIE CHART (Feature Importance)
     # ---------------------------------------------
     st.subheader(f"📊 Factors Affecting Stroke for {patient_name}")
 
     importance_series = pd.Series(feature_importance, index=features)
 
-    # Pie Chart
-    fig, ax = plt.subplots(figsize=(8, 8))
+    fig, ax = plt.subplots(figsize=(9, 9))
     ax.pie(
         importance_series.values,
         labels=importance_series.index,
@@ -93,5 +121,7 @@ if st.button("🔍 Predict Stroke"):
     ax.set_title(f"Feature Importance for {patient_name}")
     st.pyplot(fig)
 
-    st.info("Note: This pie chart shows how much each factor **generally** affects stroke prediction using the model’s feature importance.")
-
+    st.info(
+        "This pie chart shows how much each feature contributes to prediction "
+        "based on the Random Forest model."
+    )
