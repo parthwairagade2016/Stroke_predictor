@@ -74,10 +74,12 @@ if st.button("Predict Stroke Risk"):
 
     if percentage >= 70:
         st.error("🚨 High Risk! Immediate medical attention recommended.")
-    elif percentage >= 40:
+    elif percentage >= 25:
         st.warning("⚠️ Moderate Risk. Health monitoring advised.")
+    elif percentage >= 20:
+        st.warning("⚠️ Slight Risk. Health monitoring advised.")    
     else:
-        st.success("🟢 Low Risk.")
+        st.success("Low Risk.")
 
     # Prepare pie chart
     features = ["Age", "Hypertension", "Heart Disease", "Ever Married",
@@ -88,7 +90,7 @@ if st.button("Predict Stroke Risk"):
     ax.pie(values, labels=features, autopct="%1.1f%%", startangle=90)
     ax.set_title(f"Feature Contribution for {patient_name}")
 
-    st.pyplot(fig) as st
+    st.pyplot(fig)
 import pandas as pd
 import numpy as np
 from sklearn.preprocessing import LabelEncoder
