@@ -43,17 +43,17 @@ patient_name = st.text_input("Patient Name")
 col1, col2 = st.columns(2)
 
 with col1:
-    age = st.number_input("Age", 0, 120, 45)
-    hypertension = st.radio("Hypertension", ["No", "Yes"])
-    heart_disease = st.radio("Heart Disease", ["No", "Yes"])
-    ever_married = st.selectbox("Ever Married", list(ever_married_options.keys()))
+    age = st.number_input("Age", 0, 120, 45, key="age_input")("Age", 0, 120, 45)
+    hypertension = st.radio("Hypertension", ["No", "Yes"], key="hyper_input")("Hypertension", ["No", "Yes"])
+    heart_disease = st.radio("Heart Disease", ["No", "Yes"], key="heart_input")("Heart Disease", ["No", "Yes"])
+    ever_married = st.selectbox("Ever Married", list(ever_married_options.keys()), key="married_input")("Ever Married", list(ever_married_options.keys()))
 
 with col2:
-    avg_glucose = st.number_input("Average Glucose Level", 0.0, 300.0, 100.0)
-    bmi = st.number_input("BMI", 0.0, 60.0, 25.0)
-    work_type = st.selectbox("Work Type", list(work_type_options.keys()))
-    residence = st.selectbox("Residence Type", list(residence_options.keys()))
-    smoking_status = st.selectbox("Smoking Status", list(smoking_options.keys()))
+    avg_glucose = st.number_input("Average Glucose Level", 0.0, 300.0, 100.0, key="glucose_input")("Average Glucose Level", 0.0, 300.0, 100.0)
+    bmi = st.number_input("BMI", 0.0, 60.0, 25.0, key="bmi_input")("BMI", 0.0, 60.0, 25.0)
+    work_type = st.selectbox("Work Type", list(work_type_options.keys()), key="work_input")("Work Type", list(work_type_options.keys()))
+    residence = st.selectbox("Residence Type", list(residence_options.keys()), key="res_input")("Residence Type", list(residence_options.keys()))
+    smoking_status = st.selectbox("Smoking Status", list(smoking_options.keys()), key="smoke_input")("Smoking Status", list(smoking_options.keys()))
 
 if st.button("Predict Stroke Risk"):
     user_data = np.array([[age,
@@ -77,9 +77,9 @@ if st.button("Predict Stroke Risk"):
     elif percentage >= 25:
         st.warning("⚠️ Moderate Risk. Health monitoring advised.")
     elif percentage >= 20:
-        st.warning("⚠️ Slight Risk. Health monitoring advised.")    
+        st.warning("⚠️ Slight Risk. Health monitoring advised.")
     else:
-        st.success("Low Risk.")
+        st.success("🟢 Low Risk.")
 
     # Prepare pie chart
     features = ["Age", "Hypertension", "Heart Disease", "Ever Married",
@@ -100,7 +100,7 @@ from sklearn.ensemble import RandomForestClassifier
 import matplotlib.pyplot as plt
 
 # Load and preprocess data
-df = pd.read_csv("Strokes.csv")
+df = pd.read_csv("../Datasets/Strokes.csv")
 df = df.drop(["id", "gender"], axis=1)
 df = df.fillna(0)
 label = LabelEncoder()
