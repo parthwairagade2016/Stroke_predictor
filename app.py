@@ -44,7 +44,7 @@ col1, col2 = st.columns(2)
 
 with col1:
     age = st.number_input("Age", min_value=0, max_value=120, value=45, key="age_input")
-    hypertension = st.radio("Hypertension", ["No", "Yes"], key="hyper_input")("Hypertension", ["No", "Yes"])
+    hypertension = st.radio("Hypertension", ["No", "Yes"], key="hyper_input")
     heart_disease = st.radio("Heart Disease", ["No", "Yes"], key="heart_input")("Heart Disease", ["No", "Yes"])
     ever_married = st.selectbox("Ever Married", list(ever_married_options.keys()), key="married_input")("Ever Married", list(ever_married_options.keys()))
 
