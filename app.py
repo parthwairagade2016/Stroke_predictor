@@ -6,11 +6,10 @@ from sklearn.neighbors import KNeighborsClassifier
 from sklearn.preprocessing import LabelEncoder, StandardScaler 
 import plotly.express as px # Used for interactive pie chart
 import os
-import matplotlib.pyplot as plt # Kept for potential fallback, but Plotly is used
 
 # --- 1. CONFIGURATION AND INITIAL SETUP ---
 st.set_page_config(
-    page_title="Stroke Risk Predictor", # Cleaned up title
+    page_title="🩺 Stroke Risk Predictor",
     layout="wide",
     initial_sidebar_state="collapsed" 
 )
@@ -77,27 +76,32 @@ def load_and_preprocess_data():
             }
 
     # Feature Scaling (Crucial for KNN)
-    X = df.drop("stroke", axis=1)
+    X = df.drop("stroke", axis=1).copy()
     y = df['stroke'].values
     
     scaler = StandardScaler()
     numerical_features = ['age', 'avg_glucose_level', 'bmi']
     X[numerical_features] = scaler.fit_transform(X[numerical_features])
     
-    # --- CUSTOM FEATURE WEIGHTING FOR KNN ---
-    # Apply a multiplicative factor to high-risk binary features to increase their impact 
-    # on the KNN distance calculation, making the model more sensitive to them.
-    high_risk_binary_features = ['hypertension', 'heart_disease', 'smoking_status']
-    for feature in high_risk_binary_features:
-        if feature in X.columns:
-            feature_index = df.columns.get_loc(feature)
-            if feature in ['hypertension', 'heart_disease']:
-                 # Scale binary features by 2.5 to give them more weight
-                X.iloc[:, feature_index] = X.iloc[:, feature_index].astype(float) * 2.5
-            elif feature == 'smoking_status':
-                 # Smoking is label encoded (0, 1, 2, 3), so we scale it too.
-                 X.iloc[:, feature_index] = X.iloc[:, feature_index].astype(float) * 2.0
+    # --- NON-LINEAR TRANSFORMATION (Accuracy Enhancement for high-risk values) ---
+    
+    # Non-linear penalty for high Glucose: increases magnitude for values > 0.5 standard deviation (approx 120 mg/dL)
+    X['avg_glucose_level'] = X['avg_glucose_level'].apply(lambda x: x * 1.0 + (max(0, x - 0.5)**2) if x > 0.5 else x)
 
+    # Non-linear penalty for high BMI: increases magnitude for values > 1.5 standard deviations
+    X['bmi'] = X['bmi'].apply(lambda x: x * 1.0 + (max(0, x - 1.5)**2) if x > 1.5 else x)
+    
+    # Custom Weighting for Binary/Categorical High-Risk Features
+    # HIGHLY INCREASED WEIGHT for primary medical conditions
+    X['hypertension'] = X['hypertension'].astype(float) * 4.0 # Increased from 3.0 to 4.0
+    X['heart_disease'] = X['heart_disease'].astype(float) * 4.0 # Increased from 3.0 to 4.0
+    X['smoking_status'] = X['smoking_status'].astype(float) * 2.5 
+    
+    # Weighting for Ever Married 
+    X['ever_married'] = X['ever_married'].astype(float) * 1.5 
+    
+    # Weighting for Residence Type 
+    X['Residence_type'] = X['Residence_type'].astype(float) * 1.5
 
     # --- MODEL TRAINING ---
     
@@ -116,7 +120,7 @@ def load_and_preprocess_data():
         n_jobs=-1
     )
 
-    grid_search.fit(X, y)
+    grid_search.fit(X.values, y)
     model = grid_search.best_estimator_
     
     return X.values, y, encoders, scaler, model 
@@ -127,7 +131,7 @@ X, y, encoders, scaler, model = load_and_preprocess_data()
 
 # --- 3. INPUT WIDGETS AND INTERACTIVE LAYOUT ---
 
-st.title("🩺 Stroke Risk Prediction App") # Cleaned up title
+st.title("🩺 Stroke Risk Predictor")
 
 col1, col2 = st.columns(2)
 
@@ -140,7 +144,7 @@ with col1:
         "Hypertension (High Blood Pressure)", 
         options=['No', 'Yes'], index=0,
         format_func=lambda x: 'Yes' if x == 'Yes' else 'No',
-        help="Patient has hypertension (1=Yes, 0=No)."
+        help="Patient has hypertension (1=Yes, 0=No). CRITICAL RISK FACTOR."
     )
     
     heart_disease = st.selectbox(
@@ -153,7 +157,7 @@ with col1:
     ever_married = st.selectbox(
         "Ever Married", 
         options=['No', 'Yes'], index=1,
-        help="Has the patient ever been married?"
+        help="Has the patient ever been married? (Higher risk if 'Yes')"
     )
 
 with col2:
@@ -162,18 +166,18 @@ with col2:
     work_type = st.selectbox("Work Type", options=work_type_options, index=0)
     
     Residence_type_options = list(encoders['Residence_type']['mapping'].keys()) if 'Residence_type' in encoders else ['Urban', 'Rural']
-    Residence_type = st.selectbox("Residence Type", options=Residence_type_options, index=0)
+    Residence_type = st.selectbox("Residence Type", options=Residence_type_options, index=0, help="Urban residence is often associated with specific lifestyle factors.")
     
     avg_glucose_level = st.number_input(
         "Average Glucose Level (mg/dL)", 
         min_value=50.0, max_value=300.0, value=95.0, step=0.1,
-        help="Fasting plasma glucose test results."
+        help="Fasting plasma glucose test results. High values drastically increase risk."
     )
     
     bmi = st.number_input(
         "BMI (Body Mass Index)", 
         min_value=10.0, max_value=60.0, value=25.0, step=0.1,
-        help="Calculated as weight (kg) / height (m)^2."
+        help="Calculated as weight (kg) / height (m)^2. Obesity is a major risk factor."
     )
     
     smoking_status_options = list(encoders['smoking_status']['mapping'].keys()) if 'smoking_status' in encoders else ['never smoked', 'formerly smoked', 'smokes', 'Unknown']
@@ -187,8 +191,8 @@ if st.button("Predict Stroke Risk", type="primary"):
     hypertension_val = 1 if hypertension == 'Yes' else 0
     heart_disease_val = 1 if heart_disease == 'Yes' else 0
     ever_married_val = encoders['ever_married']['mapping'].get(ever_married, 0) if 'ever_married' in encoders else (1 if ever_married == 'Yes' else 0)
-    work_type_val = encoders['work_type']['mapping'].get(work_type, 0) if 'work_type' in encoders else 0
     residence_type_val = encoders['Residence_type']['mapping'].get(Residence_type, 0) if 'Residence_type' in encoders else 0
+    work_type_val = encoders['work_type']['mapping'].get(work_type, 0) if 'work_type' in encoders else 0
     smoking_status_val = encoders['smoking_status']['mapping'].get(smoking_status, 0) if 'smoking_status' in encoders else 0
     
     raw_input_data = np.array([
@@ -197,16 +201,28 @@ if st.button("Predict Stroke Risk", type="primary"):
         smoking_status_val
     ]).reshape(1, -1)
 
-    # Apply scaling and custom weighting to input data using the fitted scaler
+    # Apply scaling and custom weighting to input data
     input_df = pd.DataFrame(raw_input_data, columns=FEATURE_COLUMNS)
     
-    # Scale numerical features
+    # Scale numerical features using the trained scaler
     input_df[['age', 'avg_glucose_level', 'bmi']] = scaler.transform(input_df[['age', 'avg_glucose_level', 'bmi']])
     
-    # Apply the same manual weighting used during training to high-risk binary features
-    input_df['hypertension'] = input_df['hypertension'] * 2.5
-    input_df['heart_disease'] = input_df['heart_disease'] * 2.5
-    input_df['smoking_status'] = input_df['smoking_status'] * 2.0
+    # --- APPLY NON-LINEAR AND CUSTOM WEIGHTING TO INPUT DATA (MUST MATCH TRAINING) ---
+    
+    # Non-linear penalty for high Glucose (RISK STARTS EARLIER)
+    input_df['avg_glucose_level'] = input_df['avg_glucose_level'].apply(lambda x: x * 1.0 + (max(0, x - 0.5)**2) if x > 0.5 else x)
+    
+    # Non-linear penalty for high BMI
+    input_df['bmi'] = input_df['bmi'].apply(lambda x: x * 1.0 + (max(0, x - 1.5)**2) if x > 1.5 else x)
+    
+    # Custom weighting for binary/categorical features (MATCHING TRAINING WEIGHTS)
+    input_df['hypertension'] = input_df['hypertension'] * 4.0 # CRITICAL WEIGHT APPLIED
+    input_df['heart_disease'] = input_df['heart_disease'] * 4.0 # CRITICAL WEIGHT APPLIED
+    input_df['smoking_status'] = input_df['smoking_status'] * 2.5
+    
+    # WEIGHTS FOR EVER MARRIED AND RESIDENCE TYPE
+    input_df['ever_married'] = input_df['ever_married'] * 1.5
+    input_df['Residence_type'] = input_df['Residence_type'] * 1.5
     
     input_data = input_df.values
     
@@ -216,18 +232,19 @@ if st.button("Predict Stroke Risk", type="primary"):
     
     # 3. Calculate Heuristic Risk Contribution for Pie Chart (Custom Logic)
     risk_weights = {
-        "Age Risk": 15, 
-        "Glucose Risk": 25, 
-        "BMI Risk": 25, 
-        "Heart/HyperTension": 25,
+        "Age Risk": 10,  
+        "Glucose Risk": 30, 
+        "BMI Risk": 20, 
+        "Heart/HyperTension": 30, # High base weight
         "Lifestyle/Smoking": 10 
     }
     
-    # Calculate individual risk scores (0-100) based on typical thresholds
-    age_risk_score = min(100, max(0, (age - 40) / (65 - 40) * 100))
-    glucose_risk_score = min(100, max(0, (avg_glucose_level - 100) / (150 - 100) * 100))
-    bmi_risk_score = min(100, max(0, (bmi - 25) / (35 - 25) * 100))
-    heart_hyper_risk_score = (hypertension_val * 0.5 + heart_disease_val * 0.5) * 100
+    # Calculate individual risk scores (0-100) based on critical clinical thresholds
+    age_risk_score = min(100, max(0, (age - 45) / (70 - 45) * 100)) 
+    glucose_risk_score = min(100, max(0, (avg_glucose_level - 120) / (223 - 120) * 100)) 
+    bmi_risk_score = min(100, max(0, (bmi - 25) / (35 - 25) * 100)) 
+    # Emphasize hypertension (0.7) over heart disease (0.3) in the composite score
+    heart_hyper_risk_score = (hypertension_val * 0.7 + heart_disease_val * 0.3) * 100 
     smoking_risk_map = {0: 0, 1: 75, 2: 100, 3: 50}
     smoking_risk_score = smoking_risk_map.get(smoking_status_val, 0)
     
@@ -239,12 +256,10 @@ if st.button("Predict Stroke Risk", type="primary"):
         "Lifestyle/Smoking": smoking_risk_score * risk_weights["Lifestyle/Smoking"] / 100
     }
     
-    # Normalize contributions to get percentages for the pie chart
     total_score = sum(contributions.values())
     if total_score > 0:
         contribution_percentages = {k: (v / total_score) * 100 for k, v in contributions.items()}
     else:
-        # Default distribution if all risks are zero
         contribution_percentages = {k: 100 / len(contributions) for k in contributions.keys()}
         
     pie_data = pd.DataFrame(list(contribution_percentages.items()), columns=['Factor', 'Contribution'])
