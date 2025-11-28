@@ -286,13 +286,20 @@ if st.button("Predict Stroke Risk", type="primary"):
         
         st.markdown("---")
         
-        # Interpretive statement based on the percentage
-        if chance_of_stroke >= 0.5:
-            st.warning(f"**High Risk:** The model predicts a stroke chance of over 50%. Immediate medical consultation is strongly recommended.")
-        elif chance_of_stroke >= 0.1:
-            st.info(f"**Moderate Risk:** The model suggests a notable risk. Discuss these factors with a healthcare professional.")
+        # --- UPDATED RISK INTERPRETATION LOGIC ---
+        risk_percent = chance_of_stroke * 100
+        
+        if risk_percent >= 40.0:
+            st.error(f"**HIGH RISK ({risk_percent:.2f}%):** Immediate consultation with a medical professional is strongly recommended.")
+        elif risk_percent >= 35.0:
+            st.warning(f"**RISKY ({risk_percent:.2f}%):** The potential risk is significant and requires urgent attention.")
+        elif risk_percent >= 25.0:
+            st.warning(f"**MILD RISKY ({risk_percent:.2f}%):** These chances are concerning; medical review is advised.")
+        elif risk_percent >= 15.0:
+            st.info(f"**MODERATE CHANCES ({risk_percent:.2f}%):** There is a moderate potential risk profile. Review your risk factors.")
         else:
-            st.success(f"**Low Risk:** The model predicts a low risk of stroke based on the provided inputs.")
+            st.success(f"**SLIGHT CHANCES ({risk_percent:.2f}%):** The risk profile is currently low.")
+        # --- END UPDATED RISK INTERPRETATION LOGIC ---
 
         st.markdown(
             f"""
