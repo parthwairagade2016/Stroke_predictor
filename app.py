@@ -83,6 +83,31 @@ def load_and_preprocess_data():
     numerical_features = ['age', 'avg_glucose_level', 'bmi']
     X[numerical_features] = scaler.fit_transform(X[numerical_features])
     
+    # --- START OF CUSTOM FEATURE WEIGHTING FOR KNN ---
+    # Apply a multiplicative factor to high-risk binary features to increase their impact 
+    # on the KNN distance calculation, making the model more sensitive to them.
+    high_risk_binary_features = ['hypertension', 'heart_disease', 'smoking_status']
+    for feature in high_risk_binary_features:
+        # Scale only if the feature exists in the DataFrame's columns
+        if feature in X.columns:
+            # We use a factor (e.g., 2.0) to increase the magnitude of these features 
+            # after standard scaling (which has already been applied to the numericals).
+            # We scale all features that are not already scaled (like the binary ones) 
+            # and then multiply the high-risk ones by a factor.
+            
+            # Since hypertension and heart_disease are already 0/1, we just multiply
+            # the columns in X.
+            feature_index = df.columns.get_loc(feature) # Get the index from the original dataframe columns
+            if feature in ['hypertension', 'heart_disease']:
+                 # Scale binary features by 2.5 to give them more weight
+                X.iloc[:, feature_index] = X.iloc[:, feature_index].astype(float) * 2.5
+            elif feature == 'smoking_status':
+                 # Smoking is label encoded (0, 1, 2, 3), so we scale it too.
+                 X.iloc[:, feature_index] = X.iloc[:, feature_index].astype(float) * 2.0
+
+
+    # --- END OF CUSTOM FEATURE WEIGHTING ---
+    
     return X.values, y, encoders, scaler # Return the fitted scaler
 
 @st.cache_resource(show_spinner="Optimizing and Training KNN Model...")
@@ -120,7 +145,7 @@ model = get_optimized_model(X, y)
 
 st.title("🩺 Stroke Risk Prediction App (Optimized)")
 st.markdown("""
-<p style='color: green;'>The K-Nearest Neighbors (KNN) model has been optimized for the highest predictive accuracy.</p>
+<p style='color: green;'>The K-Nearest Neighbors (KNN) model has been optimized for the highest predictive accuracy and is now more sensitive to high-risk factors like **Hypertension**, **Heart Disease**, and **Smoking**.</p>
 """, unsafe_allow_html=True)
 
 col1, col2 = st.columns(2)
@@ -191,9 +216,17 @@ if st.button("Predict Stroke Risk", type="primary"):
         smoking_status_val
     ]).reshape(1, -1)
 
-    # Apply scaling to input data using the fitted scaler
+    # Apply scaling and custom weighting to input data using the fitted scaler
     input_df = pd.DataFrame(raw_input_data, columns=FEATURE_COLUMNS)
+    
+    # Scale numerical features
     input_df[['age', 'avg_glucose_level', 'bmi']] = scaler.transform(input_df[['age', 'avg_glucose_level', 'bmi']])
+    
+    # Apply the same manual weighting used during training to high-risk binary features
+    input_df['hypertension'] = input_df['hypertension'] * 2.5
+    input_df['heart_disease'] = input_df['heart_disease'] * 2.5
+    input_df['smoking_status'] = input_df['smoking_status'] * 2.0
+    
     input_data = input_df.values
     
     # 2. Make Prediction and Get Probability
@@ -201,20 +234,18 @@ if st.button("Predict Stroke Risk", type="primary"):
     chance_of_stroke = probabilities[1] # Probability of class 1 (stroke)
     
     # 3. Calculate Heuristic Risk Contribution for Pie Chart (Custom Logic)
-    # UPDATED WEIGHTS: Shifted weight from Age to Glucose and BMI to emphasize modifiable factors
+    # UPDATED WEIGHTS: Shifted weight from Age to Glucose and BMI, and slightly increased Smoking
     risk_weights = {
-        "Age Risk": 15, # Reduced from 30
-        "Glucose Risk": 25, # Increased from 20
-        "BMI Risk": 25, # Increased from 15
+        "Age Risk": 15, 
+        "Glucose Risk": 25, 
+        "BMI Risk": 25, 
         "Heart/HyperTension": 25,
-        "Lifestyle/Smoking": 10 
+        "Lifestyle/Smoking": 10 # Slightly increased to 10
     }
     
     # Calculate individual risk scores (0-100) based on typical thresholds
     age_risk_score = min(100, max(0, (age - 40) / (65 - 40) * 100))
-    # UPDATED GLUCOSE: Risk maxes out at 150 (from 125) for a more gradual, but impactful score
     glucose_risk_score = min(100, max(0, (avg_glucose_level - 100) / (150 - 100) * 100))
-    # UPDATED BMI: Risk maxes out at 35 (from 30) for better visibility in higher obesity classes
     bmi_risk_score = min(100, max(0, (bmi - 25) / (35 - 25) * 100))
     heart_hyper_risk_score = (hypertension_val * 0.5 + heart_disease_val * 0.5) * 100
     smoking_risk_map = {0: 0, 1: 75, 2: 100, 3: 50}
