@@ -38,7 +38,7 @@ def load_and_preprocess_data():
             # Fallback to synthetic data if file not found
             df = pd.DataFrame({
                 'id': range(100), 'gender': ['Male'] * 100, 'age': np.random.randint(18, 80, 100), 
-                'hypertension': np.random.randint(0, 2, 100), 'heart_disease': np.random.randint(0, 2, 100), # FIX: Corrected syntax here
+                'hypertension': np.random.randint(0, 2, 100), 'heart_disease': np.random.randint(0, 2, 100),
                 'ever_married': ['Yes'] * 100, 'work_type': ['Private'] * 100, 
                 'Residence_type': ['Urban'] * 100, 'avg_glucose_level': np.random.rand(100) * 150 + 70, 
                 'bmi': np.random.rand(100) * 20 + 20, 'smoking_status': ['never smoked'] * 100, 
@@ -50,7 +50,7 @@ def load_and_preprocess_data():
         st.error(f"Error loading data: {e}. Using synthetic data.")
         df = pd.DataFrame({
             'id': range(100), 'gender': ['Male'] * 100, 'age': np.random.randint(18, 80, 100), 
-            'hypertension': np.random.randint(0, 2, 100), 'heart_disease': np.random.randint(0, 2, 100), # FIX: Corrected syntax here
+            'hypertension': np.random.randint(0, 2, 100), 'heart_disease': np.random.randint(0, 2, 100),
             'ever_married': ['Yes'] * 100, 'work_type': ['Private'] * 100, 
             'Residence_type': ['Urban'] * 100, 'avg_glucose_level': np.random.rand(100) * 150 + 70, 
             'bmi': np.random.rand(100) * 20 + 20, 'smoking_status': ['never smoked'] * 100, 
@@ -85,8 +85,8 @@ def load_and_preprocess_data():
     
     # --- NON-LINEAR TRANSFORMATION (Accuracy Enhancement for high-risk values) ---
     
-    # Non-linear penalty for high Glucose: increases magnitude for values > 0.5 standard deviation (approx 120 mg/dL)
-    X['avg_glucose_level'] = X['avg_glucose_level'].apply(lambda x: x * 1.0 + (max(0, x - 0.5)**2) if x > 0.5 else x)
+    # Non-linear penalty for high Glucose: increases magnitude for values > 1 standard deviation
+    X['avg_glucose_level'] = X['avg_glucose_level'].apply(lambda x: x * 1.0 + (max(0, x - 1.0)**2) if x > 1.0 else x)
 
     # Non-linear penalty for high BMI: increases magnitude for values > 1.5 standard deviations
     X['bmi'] = X['bmi'].apply(lambda x: x * 1.0 + (max(0, x - 1.5)**2) if x > 1.5 else x)
@@ -125,7 +125,7 @@ X, y, encoders, scaler, model = load_and_preprocess_data()
 
 # --- 3. INPUT WIDGETS AND INTERACTIVE LAYOUT ---
 
-st.title("🩺 Stroke Risk Predictor")
+st.title("🩺 Stroke Risk Prediction App")
 
 col1, col2 = st.columns(2)
 
@@ -203,8 +203,8 @@ if st.button("Predict Stroke Risk", type="primary"):
     
     # --- APPLY NON-LINEAR AND CUSTOM WEIGHTING TO INPUT DATA (MUST MATCH TRAINING) ---
     
-    # Non-linear penalty for high Glucose (RISK STARTS EARLIER)
-    input_df['avg_glucose_level'] = input_df['avg_glucose_level'].apply(lambda x: x * 1.0 + (max(0, x - 0.5)**2) if x > 0.5 else x)
+    # Non-linear penalty for high Glucose
+    input_df['avg_glucose_level'] = input_df['avg_glucose_level'].apply(lambda x: x * 1.0 + (max(0, x - 1.0)**2) if x > 1.0 else x)
     
     # Non-linear penalty for high BMI
     input_df['bmi'] = input_df['bmi'].apply(lambda x: x * 1.0 + (max(0, x - 1.5)**2) if x > 1.5 else x)
@@ -222,18 +222,21 @@ if st.button("Predict Stroke Risk", type="primary"):
     
     # 3. Calculate Heuristic Risk Contribution for Pie Chart (Custom Logic)
     risk_weights = {
-        "Age Risk": 10,  
+        "Age Risk": 10,  # Lowered weight for Age
         "Glucose Risk": 30, # Increased weight for Glucose
-        "BMI Risk": 20, 
-        "Heart/HyperTension": 30, 
+        "BMI Risk": 20, # Increased weight for BMI
+        "Heart/HyperTension": 30, # Highest weight for primary risk factors
         "Lifestyle/Smoking": 10 
     }
     
     # Calculate individual risk scores (0-100) based on critical clinical thresholds
+    # Risk starts later, max at 70
     age_risk_score = min(100, max(0, (age - 45) / (70 - 45) * 100)) 
-    # Glucose Risk: START INCREASING AT 120 mg/dL, max at 223 mg/dL
-    glucose_risk_score = min(100, max(0, (avg_glucose_level - 120) / (223 - 120) * 100)) 
+    # Risk based on 140mg/dL threshold, max at 223mg/dL
+    glucose_risk_score = min(100, max(0, (avg_glucose_level - 140) / (223 - 140) * 100)) 
+    # Risk based on 25 threshold, max at 35 (obesity)
     bmi_risk_score = min(100, max(0, (bmi - 25) / (35 - 25) * 100)) 
+    # Hypertension gets slightly more weight
     heart_hyper_risk_score = (hypertension_val * 0.6 + heart_disease_val * 0.4) * 100 
     smoking_risk_map = {0: 0, 1: 75, 2: 100, 3: 50}
     smoking_risk_score = smoking_risk_map.get(smoking_status_val, 0)
