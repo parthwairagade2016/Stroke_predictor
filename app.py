@@ -1,18 +1,17 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
-from sklearn.model_selection import train_test_split
+from sklearn.model_selection import GridSearchCV 
 from sklearn.neighbors import KNeighborsClassifier
-from sklearn.preprocessing import LabelEncoder
-# Removed import plotly.graph_objects as go
-import matplotlib.pyplot as plt # --- NEW: Import matplotlib for the chart
+from sklearn.preprocessing import LabelEncoder, StandardScaler 
+import matplotlib.pyplot as plt
 import os
 
 # --- 1. CONFIGURATION AND INITIAL SETUP ---
 st.set_page_config(
-    page_title="Stroke Risk Predictor",
+    page_title="Stroke Risk Predictor (Optimized)",
     layout="wide",
-    initial_sidebar_state="expanded"
+    initial_sidebar_state="collapsed" 
 )
 
 # Define the expected features and their data types
@@ -22,92 +21,107 @@ FEATURE_COLUMNS = [
     'smoking_status'
 ]
 
-# --- 2. DATA LOADING AND MODEL TRAINING (Cached for Performance) ---
+# --- 2. DATA LOADING AND PREPROCESSING (Cached for Performance) ---
 
-@st.cache_data
+@st.cache_data(show_spinner="Loading and Preprocessing Data...")
 def load_and_preprocess_data():
-    """Loads the dataset and performs the necessary preprocessing."""
-    # NOTE: Since the file path "../Datasets/Strokes.csv" is external, 
-    # we assume 'Strokes.csv' is in the current directory for execution environment.
-    # If the file is not found, a placeholder structure is used.
+    """Loads the dataset, imputes missing data, performs scaling and encoding."""
     try:
-        # Check for common names first
+        # Check for common file names
         file_path = 'Strokes.csv'
         if not os.path.exists(file_path):
-             # Fallback to a common alternative name if needed
              file_path = 'stroke.csv' 
         
         if os.path.exists(file_path):
              df = pd.read_csv(file_path)
         else:
-            st.error(f"Error: Could not find 'Strokes.csv' or 'stroke.csv'. Using synthetic data for structure.")
-            # Create a synthetic DataFrame structure matching the expected columns
+            # Fallback to synthetic data if file not found
             df = pd.DataFrame({
-                'id': range(10), 'gender': ['Male'] * 10, 'age': np.random.randint(18, 80, 10), 
-                'hypertension': np.random.randint(0, 2, 10), 'heart_disease': np.random.randint(0, 2, 10),
-                'ever_married': ['Yes'] * 10, 'work_type': ['Private'] * 10, 
-                'Residence_type': ['Urban'] * 10, 'avg_glucose_level': np.random.rand(10) * 150 + 70, 
-                'bmi': np.random.rand(10) * 20 + 20, 'smoking_status': ['never smoked'] * 10, 
-                'stroke': np.random.randint(0, 2, 10)
+                'id': range(100), 'gender': ['Male'] * 100, 'age': np.random.randint(18, 80, 100), 
+                'hypertension': np.random.randint(0, 2, 100), 'heart_disease': np.random.randint(0, 2, 100),
+                'ever_married': ['Yes'] * 100, 'work_type': ['Private'] * 100, 
+                'Residence_type': ['Urban'] * 100, 'avg_glucose_level': np.random.rand(100) * 150 + 70, 
+                'bmi': np.random.rand(100) * 20 + 20, 'smoking_status': ['never smoked'] * 100, 
+                'stroke': np.random.randint(0, 2, 100)
             })
+            st.warning("Warning: Data file not found. Using synthetic dataset for structure.")
             
     except Exception as e:
-        st.error(f"Failed to load or process data: {e}. Using synthetic data.")
+        st.error(f"Error loading data: {e}. Using synthetic data.")
         df = pd.DataFrame({
-            'id': range(10), 'gender': ['Male'] * 10, 'age': np.random.randint(18, 80, 10), 
-            'hypertension': np.random.randint(0, 2, 10), 'heart_disease': np.random.randint(0, 2, 10),
-            'ever_married': ['Yes'] * 10, 'work_type': ['Private'] * 10, 
-            'Residence_type': ['Urban'] * 10, 'avg_glucose_level': np.random.rand(10) * 150 + 70, 
-            'bmi': np.random.rand(10) * 20 + 20, 'smoking_status': ['never smoked'] * 10, 
-            'stroke': np.random.randint(0, 2, 10)
+            'id': range(100), 'gender': ['Male'] * 100, 'age': np.random.randint(18, 80, 100), 
+            'hypertension': np.random.randint(0, 2, 100), 'heart_disease': np.random.randint(0, 2, 100),
+            'ever_married': ['Yes'] * 100, 'work_type': ['Private'] * 100, 
+            'Residence_type': ['Urban'] * 100, 'avg_glucose_level': np.random.rand(100) * 150 + 70, 
+            'bmi': np.random.rand(100) * 20 + 20, 'smoking_status': ['never smoked'] * 100, 
+            'stroke': np.random.randint(0, 2, 100)
         })
 
-
-    # Replicate original data cleaning and feature dropping
+    # Data Cleaning and Imputation
     df.drop(["id", "gender"], axis=1, inplace=True, errors='ignore')
-    df = df.fillna(0) # Handle BMI NaNs as 0, matching original code
+    
+    # Impute missing BMI with the median for robust performance
+    median_bmi = df['bmi'].median() if df['bmi'].notna().any() else 25.0
+    df['bmi'].fillna(median_bmi, inplace=True)
 
-    # Replicate Label Encoding based on unique values in the loaded/synthetic data
+    # Label Encoding for categorical features
     encoders = {}
     for col in ['work_type', 'Residence_type', 'ever_married', 'smoking_status']:
         if col in df.columns:
             le = LabelEncoder()
-            # Ensure the encoder is fit on the full column for consistent mapping
             df[col] = le.fit_transform(df[col])
             encoders[col] = {
                 'encoder': le, 
                 'mapping': dict(zip(le.classes_, le.transform(le.classes_)))
             }
 
-    # Prepare data for model training
-    X = df.drop("stroke", axis=1).values
+    # Feature Scaling (Crucial for KNN)
+    X = df.drop("stroke", axis=1)
     y = df['stroke'].values
     
-    # Use all data to train the final model as the original code snippet suggests
-    # finding the best model and then using it for prediction.
-    return X, y, encoders
-
-@st.cache_resource
-def train_model(X, y):
-    """Trains the best-found KNN model from the original code (n_neighbors=71)."""
+    scaler = StandardScaler()
+    numerical_features = ['age', 'avg_glucose_level', 'bmi']
+    X[numerical_features] = scaler.fit_transform(X[numerical_features])
     
-    # Train-test split is used primarily for the original GridSearchCV but
-    # for the final model we often train on the entire dataset.
-    # We will use the parameters found in the original code: n_neighbors=71
-    model = KNeighborsClassifier(n_neighbors=71)
-    model.fit(X, y)
-    return model
+    return X.values, y, encoders, scaler # Return the fitted scaler
 
-# Load data, get encodings, and train the model
-X, y, encoders = load_and_preprocess_data()
-model = train_model(X, y)
+@st.cache_resource(show_spinner="Optimizing and Training KNN Model...")
+def get_optimized_model(X, y):
+    """Performs GridSearchCV on the scaled data and returns the best-optimized KNN model."""
+    
+    # Define hyperparameter grid 
+    tuned_parameters = {
+        'n_neighbors': [5, 11, 21, 41, 71, 101],
+        'weights': ['uniform', 'distance'],
+        'algorithm': ['auto', 'ball_tree', 'kd_tree', 'brute']
+    }
+    
+    # Use GridSearchCV for optimal parameter selection
+    grid_search = GridSearchCV(
+        estimator=KNeighborsClassifier(),
+        param_grid=tuned_parameters,
+        cv=6, 
+        scoring='accuracy', 
+        n_jobs=-1
+    )
+
+    # Fit GridSearch on the scaled training data
+    grid_search.fit(X, y)
+    
+    # Return the best estimator found
+    return grid_search.best_estimator_
+
+# Load data, get encodings, scaler, and train the optimized model
+X, y, encoders, scaler = load_and_preprocess_data()
+model = get_optimized_model(X, y)
+
 
 # --- 3. INPUT WIDGETS AND INTERACTIVE LAYOUT ---
 
-st.title("🩺 Stroke Risk Prediction App")
+st.title("🩺 Stroke Risk Prediction App (Optimized)")
 st.markdown("""
-Enter the patient's clinical and lifestyle information below to predict the likelihood of a stroke.
-""")
+<p style='color: green;'>The K-Nearest Neighbors (KNN) model has been optimized for the highest predictive accuracy.</p>
+""", unsafe_allow_html=True)
 
 col1, col2 = st.columns(2)
 
@@ -116,7 +130,6 @@ with col1:
     
     age = st.slider("Age", 0, 100, 50, help="Patient's age in years.")
     
-    # Map 'Yes'/'No' to 1/0 as expected by the model for binary features
     hypertension = st.selectbox(
         "Hypertension (High Blood Pressure)", 
         options=['No', 'Yes'], index=0,
@@ -139,8 +152,6 @@ with col1:
 
 with col2:
     # Use the mapping from the loaded data for categorical features
-    
-    # Get unique categories from the encoder if available, otherwise use defaults
     work_type_options = list(encoders['work_type']['mapping'].keys()) if 'work_type' in encoders else ['Private', 'Self-employed', 'Govt_job', 'children', 'Never_worked']
     work_type = st.selectbox("Work Type", options=work_type_options, index=0)
     
@@ -167,70 +178,51 @@ with col2:
 if st.button("Predict Stroke Risk", type="primary"):
     
     # 1. Convert user inputs into the numerical vector expected by the model
-    
-    # Binary/Simple Mapping
     hypertension_val = 1 if hypertension == 'Yes' else 0
     heart_disease_val = 1 if heart_disease == 'Yes' else 0
     ever_married_val = encoders['ever_married']['mapping'].get(ever_married, 0) if 'ever_married' in encoders else (1 if ever_married == 'Yes' else 0)
-
-    # Label Encoded Mapping (using the cached encoders)
     work_type_val = encoders['work_type']['mapping'].get(work_type, 0) if 'work_type' in encoders else 0
     residence_type_val = encoders['Residence_type']['mapping'].get(Residence_type, 0) if 'Residence_type' in encoders else 0
     smoking_status_val = encoders['smoking_status']['mapping'].get(smoking_status, 0) if 'smoking_status' in encoders else 0
     
-    # Create the input array
-    input_data = np.array([
-        age, 
-        hypertension_val, 
-        heart_disease_val, 
-        ever_married_val, 
-        work_type_val, 
-        residence_type_val, 
-        avg_glucose_level, 
-        bmi, 
+    raw_input_data = np.array([
+        age, hypertension_val, heart_disease_val, ever_married_val, 
+        work_type_val, residence_type_val, avg_glucose_level, bmi, 
         smoking_status_val
     ]).reshape(1, -1)
+
+    # Apply scaling to input data using the fitted scaler
+    input_df = pd.DataFrame(raw_input_data, columns=FEATURE_COLUMNS)
+    input_df[['age', 'avg_glucose_level', 'bmi']] = scaler.transform(input_df[['age', 'avg_glucose_level', 'bmi']])
+    input_data = input_df.values
     
     # 2. Make Prediction and Get Probability
-    
-    # The KNN model returns probability based on the ratio of neighbors in each class
     probabilities = model.predict_proba(input_data)[0]
     chance_of_stroke = probabilities[1] # Probability of class 1 (stroke)
     
     # 3. Calculate Heuristic Risk Contribution for Pie Chart (Custom Logic)
-    
-    # This section calculates a simplified, interpretable risk score based on
-    # standard medical risk thresholds, serving as a proxy for 'factor contribution'.
-    
-    # Risk factor weights (can be adjusted)
     risk_weights = {
         "Age Risk": 30,
-        "Glucose Risk": 25,
-        "BMI Risk": 25,
-        "Heart/HyperTension": 20
+        "Glucose Risk": 20,
+        "BMI Risk": 15,
+        "Heart/HyperTension": 25,
+        "Lifestyle/Smoking": 10 
     }
     
     # Calculate individual risk scores (0-100) based on typical thresholds
-    # Score is 0 if low risk, and increases up to 100 based on severity/presence.
-    
-    # Age Risk: High risk over 65 (arbitrary threshold for normalization)
     age_risk_score = min(100, max(0, (age - 40) / (65 - 40) * 100))
-    
-    # Glucose Risk: High risk over 125 mg/dL (diabetic)
     glucose_risk_score = min(100, max(0, (avg_glucose_level - 100) / (125 - 100) * 100))
-    
-    # BMI Risk: High risk over 30 (obesity)
     bmi_risk_score = min(100, max(0, (bmi - 25) / (30 - 25) * 100))
-    
-    # Heart/HyperTension Risk: Binary multiplier
     heart_hyper_risk_score = (hypertension_val * 0.5 + heart_disease_val * 0.5) * 100
-
-    # Combine the risk score with its weight
+    smoking_risk_map = {0: 0, 1: 75, 2: 100, 3: 50}
+    smoking_risk_score = smoking_risk_map.get(smoking_status_val, 0)
+    
     contributions = {
         "Age Risk": age_risk_score * risk_weights["Age Risk"] / 100,
         "Glucose Risk": glucose_risk_score * risk_weights["Glucose Risk"] / 100,
         "BMI Risk": bmi_risk_score * risk_weights["BMI Risk"] / 100,
         "Heart/HyperTension": heart_hyper_risk_score * risk_weights["Heart/HyperTension"] / 100,
+        "Lifestyle/Smoking": smoking_risk_score * risk_weights["Lifestyle/Smoking"] / 100
     }
     
     # Normalize contributions to get percentages for the pie chart
@@ -238,7 +230,7 @@ if st.button("Predict Stroke Risk", type="primary"):
     if total_score > 0:
         contribution_percentages = {k: (v / total_score) * 100 for k, v in contributions.items()}
     else:
-        # Default to equal contribution if risk score is zero
+        # Default distribution if all risks are zero
         contribution_percentages = {k: 100 / len(contributions) for k in contributions.keys()}
         
     pie_labels = list(contribution_percentages.keys())
@@ -255,7 +247,7 @@ if st.button("Predict Stroke Risk", type="primary"):
         st.metric(
             label="Predicted Stroke Risk", 
             value=f"{chance_of_stroke * 100:.2f}%", 
-            delta=None # No delta for a single prediction
+            delta=None 
         )
         
         st.markdown("---")
@@ -272,50 +264,31 @@ if st.button("Predict Stroke Risk", type="primary"):
             f"""
             <div style="font-size: small; margin-top: 20px;">
             The prediction of **{chance_of_stroke * 100:.2f}%** is based on the 
-            K-Nearest Neighbors model, which calculates how similar this patient's 
-            profile is to patients in the dataset who experienced a stroke.
+            optimally tuned K-Nearest Neighbors model.
             </div>
             """, 
             unsafe_allow_html=True
         )
 
     with col_chart:
-        # --- NEW: Create and display the Pie Chart using Matplotlib ---
         fig, ax = plt.subplots(figsize=(6, 4))
         
-        # Custom colors for a cleaner look
-        colors = ['#4c9eff', '#ff6f69', '#ffcc5c', '#50c878']
-        
-        # Explode the largest slice for visual emphasis
+        colors = ['#4c9eff', '#ff6f69', '#ffcc5c', '#50c878', '#9933cc'] 
+        # Highlight the largest contribution
         explode = [0.05 if v == max(pie_values) else 0 for v in pie_values]
         
         ax.pie(
             pie_values, 
             explode=explode, 
             labels=pie_labels, 
-            autopct='%1.1f%%', # Show percentages on slices
+            autopct='%1.1f%%', 
             shadow=True, 
             startangle=90, 
-            colors=colors,
+            colors=colors[:len(pie_values)], 
             textprops={'fontsize': 10}
         )
         
-        ax.axis('equal')  # Ensures the pie chart is circular
+        ax.axis('equal')  
         ax.set_title("Heuristic Risk Factor Contribution", fontsize=12)
         
-        # Use st.pyplot to display the matplotlib figure
         st.pyplot(fig)
-        # --- END NEW MATPLOTLIB CODE ---
-
-# --- 6. NOTES ---
-st.sidebar.markdown("### ℹ️ Model Details")
-st.sidebar.markdown("""
-This application uses a K-Nearest Neighbors (KNN) model, trained on the provided dataset with the optimal `n_neighbors=71`.
-
-**Important Note on Factor Contribution:**
-The KNN model does not provide direct feature importance. The "Heuristic Risk Factor Contribution" in the pie chart is calculated by comparing the patient's inputs (Age, Glucose, BMI, Heart/HyperTension) to established medical risk thresholds, providing an interpretable visualization of which factors drive the risk.
-""")
-
-# Optional: Show the data mappings used
-if st.sidebar.checkbox("Show Feature Encodings"):
-    st.sidebar.json({k: v['mapping'] for k, v in encoders.items()})
