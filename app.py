@@ -38,7 +38,7 @@ def load_and_preprocess_data():
             # Fallback to synthetic data if file not found
             df = pd.DataFrame({
                 'id': range(100), 'gender': ['Male'] * 100, 'age': np.random.randint(18, 80, 100), 
-                'hypertension': np.random.randint(0, 2, 100), 'heart_disease': np.random.randint(0. 2, 100),
+                'hypertension': np.random.randint(0, 2, 100), 'heart_disease': np.random.randint(0, 2, 100), # FIX: Corrected syntax here
                 'ever_married': ['Yes'] * 100, 'work_type': ['Private'] * 100, 
                 'Residence_type': ['Urban'] * 100, 'avg_glucose_level': np.random.rand(100) * 150 + 70, 
                 'bmi': np.random.rand(100) * 20 + 20, 'smoking_status': ['never smoked'] * 100, 
@@ -50,7 +50,7 @@ def load_and_preprocess_data():
         st.error(f"Error loading data: {e}. Using synthetic data.")
         df = pd.DataFrame({
             'id': range(100), 'gender': ['Male'] * 100, 'age': np.random.randint(18, 80, 100), 
-            'hypertension': np.random.randint(0, 2, 100), 'heart_disease': np.random.randint(0, 2, 100),
+            'hypertension': np.random.randint(0, 2, 100), 'heart_disease': np.random.randint(0, 2, 100), # FIX: Corrected syntax here
             'ever_married': ['Yes'] * 100, 'work_type': ['Private'] * 100, 
             'Residence_type': ['Urban'] * 100, 'avg_glucose_level': np.random.rand(100) * 150 + 70, 
             'bmi': np.random.rand(100) * 20 + 20, 'smoking_status': ['never smoked'] * 100, 
