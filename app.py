@@ -93,8 +93,8 @@ def load_and_preprocess_data():
     
     # Custom Weighting for Binary/Categorical High-Risk Features
     # HIGHLY INCREASED WEIGHT for primary medical conditions
-    X['hypertension'] = X['hypertension'].astype(float) * 4.0 # Increased from 3.0 to 4.0
-    X['heart_disease'] = X['heart_disease'].astype(float) * 4.0 # Increased from 3.0 to 4.0
+    X['hypertension'] = X['hypertension'].astype(float) * 4.0 
+    X['heart_disease'] = X['heart_disease'].astype(float) * 4.0 
     X['smoking_status'] = X['smoking_status'].astype(float) * 2.5 
     
     # Weighting for Ever Married 
@@ -216,8 +216,8 @@ if st.button("Predict Stroke Risk", type="primary"):
     input_df['bmi'] = input_df['bmi'].apply(lambda x: x * 1.0 + (max(0, x - 1.5)**2) if x > 1.5 else x)
     
     # Custom weighting for binary/categorical features (MATCHING TRAINING WEIGHTS)
-    input_df['hypertension'] = input_df['hypertension'] * 4.0 # CRITICAL WEIGHT APPLIED
-    input_df['heart_disease'] = input_df['heart_disease'] * 4.0 # CRITICAL WEIGHT APPLIED
+    input_df['hypertension'] = input_df['hypertension'] * 4.0 
+    input_df['heart_disease'] = input_df['heart_disease'] * 4.0 
     input_df['smoking_status'] = input_df['smoking_status'] * 2.5
     
     # WEIGHTS FOR EVER MARRIED AND RESIDENCE TYPE
@@ -232,10 +232,10 @@ if st.button("Predict Stroke Risk", type="primary"):
     
     # 3. Calculate Heuristic Risk Contribution for Pie Chart (Custom Logic)
     risk_weights = {
-        "Age Risk": 10,  
-        "Glucose Risk": 30, 
+        "Age Risk": 20,  # Increased visual weight
+        "Glucose Risk": 20, # Adjusted visual weight
         "BMI Risk": 20, 
-        "Heart/HyperTension": 30, # High base weight
+        "Heart/HyperTension": 40, # Increased visual weight
         "Lifestyle/Smoking": 10 
     }
     
