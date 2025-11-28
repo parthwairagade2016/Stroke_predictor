@@ -201,18 +201,21 @@ if st.button("Predict Stroke Risk", type="primary"):
     chance_of_stroke = probabilities[1] # Probability of class 1 (stroke)
     
     # 3. Calculate Heuristic Risk Contribution for Pie Chart (Custom Logic)
+    # UPDATED WEIGHTS: Shifted weight from Age to Glucose and BMI to emphasize modifiable factors
     risk_weights = {
-        "Age Risk": 30,
-        "Glucose Risk": 20,
-        "BMI Risk": 15,
+        "Age Risk": 15, # Reduced from 30
+        "Glucose Risk": 25, # Increased from 20
+        "BMI Risk": 25, # Increased from 15
         "Heart/HyperTension": 25,
         "Lifestyle/Smoking": 10 
     }
     
     # Calculate individual risk scores (0-100) based on typical thresholds
     age_risk_score = min(100, max(0, (age - 40) / (65 - 40) * 100))
-    glucose_risk_score = min(100, max(0, (avg_glucose_level - 100) / (125 - 100) * 100))
-    bmi_risk_score = min(100, max(0, (bmi - 25) / (30 - 25) * 100))
+    # UPDATED GLUCOSE: Risk maxes out at 150 (from 125) for a more gradual, but impactful score
+    glucose_risk_score = min(100, max(0, (avg_glucose_level - 100) / (150 - 100) * 100))
+    # UPDATED BMI: Risk maxes out at 35 (from 30) for better visibility in higher obesity classes
+    bmi_risk_score = min(100, max(0, (bmi - 25) / (35 - 25) * 100))
     heart_hyper_risk_score = (hypertension_val * 0.5 + heart_disease_val * 0.5) * 100
     smoking_risk_map = {0: 0, 1: 75, 2: 100, 3: 50}
     smoking_risk_score = smoking_risk_map.get(smoking_status_val, 0)
