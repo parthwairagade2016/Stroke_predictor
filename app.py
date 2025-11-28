@@ -4,12 +4,13 @@ import numpy as np
 from sklearn.model_selection import GridSearchCV 
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn.preprocessing import LabelEncoder, StandardScaler 
-import matplotlib.pyplot as plt
+import plotly.express as px # Used for interactive pie chart
 import os
+import matplotlib.pyplot as plt # Kept for potential fallback, but Plotly is used
 
 # --- 1. CONFIGURATION AND INITIAL SETUP ---
 st.set_page_config(
-    page_title="Stroke Risk Predictor (Optimized)",
+    page_title="Stroke Risk Predictor", # Cleaned up title
     layout="wide",
     initial_sidebar_state="collapsed" 
 )
@@ -23,9 +24,9 @@ FEATURE_COLUMNS = [
 
 # --- 2. DATA LOADING AND PREPROCESSING (Cached for Performance) ---
 
-@st.cache_data(show_spinner="Loading and Preprocessing Data...")
+@st.cache_data(show_spinner="Loading and Training Model...")
 def load_and_preprocess_data():
-    """Loads the dataset, imputes missing data, performs scaling and encoding."""
+    """Loads the dataset, imputes missing data, performs scaling, encoding, and training."""
     try:
         # Check for common file names
         file_path = 'Strokes.csv'
@@ -83,21 +84,13 @@ def load_and_preprocess_data():
     numerical_features = ['age', 'avg_glucose_level', 'bmi']
     X[numerical_features] = scaler.fit_transform(X[numerical_features])
     
-    # --- START OF CUSTOM FEATURE WEIGHTING FOR KNN ---
+    # --- CUSTOM FEATURE WEIGHTING FOR KNN ---
     # Apply a multiplicative factor to high-risk binary features to increase their impact 
     # on the KNN distance calculation, making the model more sensitive to them.
     high_risk_binary_features = ['hypertension', 'heart_disease', 'smoking_status']
     for feature in high_risk_binary_features:
-        # Scale only if the feature exists in the DataFrame's columns
         if feature in X.columns:
-            # We use a factor (e.g., 2.0) to increase the magnitude of these features 
-            # after standard scaling (which has already been applied to the numericals).
-            # We scale all features that are not already scaled (like the binary ones) 
-            # and then multiply the high-risk ones by a factor.
-            
-            # Since hypertension and heart_disease are already 0/1, we just multiply
-            # the columns in X.
-            feature_index = df.columns.get_loc(feature) # Get the index from the original dataframe columns
+            feature_index = df.columns.get_loc(feature)
             if feature in ['hypertension', 'heart_disease']:
                  # Scale binary features by 2.5 to give them more weight
                 X.iloc[:, feature_index] = X.iloc[:, feature_index].astype(float) * 2.5
@@ -106,13 +99,7 @@ def load_and_preprocess_data():
                  X.iloc[:, feature_index] = X.iloc[:, feature_index].astype(float) * 2.0
 
 
-    # --- END OF CUSTOM FEATURE WEIGHTING ---
-    
-    return X.values, y, encoders, scaler # Return the fitted scaler
-
-@st.cache_resource(show_spinner="Optimizing and Training KNN Model...")
-def get_optimized_model(X, y):
-    """Performs GridSearchCV on the scaled data and returns the best-optimized KNN model."""
+    # --- MODEL TRAINING ---
     
     # Define hyperparameter grid 
     tuned_parameters = {
@@ -121,7 +108,6 @@ def get_optimized_model(X, y):
         'algorithm': ['auto', 'ball_tree', 'kd_tree', 'brute']
     }
     
-    # Use GridSearchCV for optimal parameter selection
     grid_search = GridSearchCV(
         estimator=KNeighborsClassifier(),
         param_grid=tuned_parameters,
@@ -130,23 +116,18 @@ def get_optimized_model(X, y):
         n_jobs=-1
     )
 
-    # Fit GridSearch on the scaled training data
     grid_search.fit(X, y)
+    model = grid_search.best_estimator_
     
-    # Return the best estimator found
-    return grid_search.best_estimator_
+    return X.values, y, encoders, scaler, model 
 
 # Load data, get encodings, scaler, and train the optimized model
-X, y, encoders, scaler = load_and_preprocess_data()
-model = get_optimized_model(X, y)
+X, y, encoders, scaler, model = load_and_preprocess_data()
 
 
 # --- 3. INPUT WIDGETS AND INTERACTIVE LAYOUT ---
 
-st.title("🩺 Stroke Risk Prediction App (Optimized)")
-st.markdown("""
-<p style='color: green;'>The K-Nearest Neighbors (KNN) model has been optimized for the highest predictive accuracy and is now more sensitive to high-risk factors like **Hypertension**, **Heart Disease**, and **Smoking**.</p>
-""", unsafe_allow_html=True)
+st.title("🩺 Stroke Risk Prediction App") # Cleaned up title
 
 col1, col2 = st.columns(2)
 
@@ -234,13 +215,12 @@ if st.button("Predict Stroke Risk", type="primary"):
     chance_of_stroke = probabilities[1] # Probability of class 1 (stroke)
     
     # 3. Calculate Heuristic Risk Contribution for Pie Chart (Custom Logic)
-    # UPDATED WEIGHTS: Shifted weight from Age to Glucose and BMI, and slightly increased Smoking
     risk_weights = {
         "Age Risk": 15, 
         "Glucose Risk": 25, 
         "BMI Risk": 25, 
         "Heart/HyperTension": 25,
-        "Lifestyle/Smoking": 10 # Slightly increased to 10
+        "Lifestyle/Smoking": 10 
     }
     
     # Calculate individual risk scores (0-100) based on typical thresholds
@@ -267,8 +247,7 @@ if st.button("Predict Stroke Risk", type="primary"):
         # Default distribution if all risks are zero
         contribution_percentages = {k: 100 / len(contributions) for k in contributions.keys()}
         
-    pie_labels = list(contribution_percentages.keys())
-    pie_values = list(contribution_percentages.values())
+    pie_data = pd.DataFrame(list(contribution_percentages.items()), columns=['Factor', 'Contribution'])
     
     
     # --- 5. DISPLAY RESULTS ---
@@ -286,7 +265,7 @@ if st.button("Predict Stroke Risk", type="primary"):
         
         st.markdown("---")
         
-        # --- UPDATED RISK INTERPRETATION LOGIC ---
+        # --- CUSTOMIZED RISK INTERPRETATION LOGIC ---
         risk_percent = chance_of_stroke * 100
         
         if risk_percent >= 40.0:
@@ -299,37 +278,30 @@ if st.button("Predict Stroke Risk", type="primary"):
             st.info(f"**MODERATE CHANCES ({risk_percent:.2f}%):** There is a moderate potential risk profile. Review your risk factors.")
         else:
             st.success(f"**SLIGHT CHANCES ({risk_percent:.2f}%):** The risk profile is currently low.")
-        # --- END UPDATED RISK INTERPRETATION LOGIC ---
+        # --- END CUSTOMIZED RISK INTERPRETATION LOGIC ---
 
         st.markdown(
             f"""
             <div style="font-size: small; margin-top: 20px;">
-            The prediction of **{chance_of_stroke * 100:.2f}%** is based on the 
-            optimally tuned K-Nearest Neighbors model.
+            This prediction is based on the optimally tuned model's comparison 
+            of the patient's data to similar stroke cases in the dataset.
             </div>
             """, 
             unsafe_allow_html=True
         )
 
     with col_chart:
-        fig, ax = plt.subplots(figsize=(6, 4))
-        
-        colors = ['#4c9eff', '#ff6f69', '#ffcc5c', '#50c878', '#9933cc'] 
-        # Highlight the largest contribution
-        explode = [0.05 if v == max(pie_values) else 0 for v in pie_values]
-        
-        ax.pie(
-            pie_values, 
-            explode=explode, 
-            labels=pie_labels, 
-            autopct='%1.1f%%', 
-            shadow=True, 
-            startangle=90, 
-            colors=colors[:len(pie_values)], 
-            textprops={'fontsize': 10}
+        # Using Plotly Express for interactive chart
+        fig = px.pie(
+            pie_data, 
+            values='Contribution', 
+            names='Factor', 
+            title='Heuristic Risk Factor Contribution',
+            height=400,
+            color_discrete_sequence=px.colors.sequential.Agsunset,
         )
+        # Customizing layout for better aesthetics
+        fig.update_traces(textposition='inside', textinfo='percent+label')
+        fig.update_layout(margin=dict(t=30, b=0, l=0, r=0))
         
-        ax.axis('equal')  
-        ax.set_title("Heuristic Risk Factor Contribution", fontsize=12)
-        
-        st.pyplot(fig)
+        st.plotly_chart(fig, use_container_width=True)
