@@ -9,7 +9,7 @@ import os
 
 # --- 1. CONFIGURATION AND INITIAL SETUP ---
 st.set_page_config(
-    page_title="🩺 Stroke Risk Predictor",
+    page_title="Stroke Risk Predictor",
     layout="wide",
     initial_sidebar_state="collapsed" 
 )
@@ -38,7 +38,7 @@ def load_and_preprocess_data():
             # Fallback to synthetic data if file not found
             df = pd.DataFrame({
                 'id': range(100), 'gender': ['Male'] * 100, 'age': np.random.randint(18, 80, 100), 
-                'hypertension': np.random.randint(0, 2, 100), 'heart_disease': np.random.randint(0, 2, 100),
+                'hypertension': np.random.randint(0, 2, 100), 'heart_disease': np.random.randint(0. 2, 100),
                 'ever_married': ['Yes'] * 100, 'work_type': ['Private'] * 100, 
                 'Residence_type': ['Urban'] * 100, 'avg_glucose_level': np.random.rand(100) * 150 + 70, 
                 'bmi': np.random.rand(100) * 20 + 20, 'smoking_status': ['never smoked'] * 100, 
@@ -92,16 +92,10 @@ def load_and_preprocess_data():
     X['bmi'] = X['bmi'].apply(lambda x: x * 1.0 + (max(0, x - 1.5)**2) if x > 1.5 else x)
     
     # Custom Weighting for Binary/Categorical High-Risk Features
-    # HIGHLY INCREASED WEIGHT for primary medical conditions
-    X['hypertension'] = X['hypertension'].astype(float) * 4.0 
-    X['heart_disease'] = X['heart_disease'].astype(float) * 4.0 
-    X['smoking_status'] = X['smoking_status'].astype(float) * 2.5 
-    
-    # Weighting for Ever Married 
-    X['ever_married'] = X['ever_married'].astype(float) * 1.5 
-    
-    # Weighting for Residence Type 
-    X['Residence_type'] = X['Residence_type'].astype(float) * 1.5
+    X['hypertension'] = X['hypertension'].astype(float) * 2.5
+    X['heart_disease'] = X['heart_disease'].astype(float) * 2.5
+    X['smoking_status'] = X['smoking_status'].astype(float) * 2.0
+
 
     # --- MODEL TRAINING ---
     
@@ -144,7 +138,7 @@ with col1:
         "Hypertension (High Blood Pressure)", 
         options=['No', 'Yes'], index=0,
         format_func=lambda x: 'Yes' if x == 'Yes' else 'No',
-        help="Patient has hypertension (1=Yes, 0=No). CRITICAL RISK FACTOR."
+        help="Patient has hypertension (1=Yes, 0=No)."
     )
     
     heart_disease = st.selectbox(
@@ -157,7 +151,7 @@ with col1:
     ever_married = st.selectbox(
         "Ever Married", 
         options=['No', 'Yes'], index=1,
-        help="Has the patient ever been married? (Higher risk if 'Yes')"
+        help="Has the patient ever been married?"
     )
 
 with col2:
@@ -166,7 +160,7 @@ with col2:
     work_type = st.selectbox("Work Type", options=work_type_options, index=0)
     
     Residence_type_options = list(encoders['Residence_type']['mapping'].keys()) if 'Residence_type' in encoders else ['Urban', 'Rural']
-    Residence_type = st.selectbox("Residence Type", options=Residence_type_options, index=0, help="Urban residence is often associated with specific lifestyle factors.")
+    Residence_type = st.selectbox("Residence Type", options=Residence_type_options, index=0)
     
     avg_glucose_level = st.number_input(
         "Average Glucose Level (mg/dL)", 
@@ -191,8 +185,8 @@ if st.button("Predict Stroke Risk", type="primary"):
     hypertension_val = 1 if hypertension == 'Yes' else 0
     heart_disease_val = 1 if heart_disease == 'Yes' else 0
     ever_married_val = encoders['ever_married']['mapping'].get(ever_married, 0) if 'ever_married' in encoders else (1 if ever_married == 'Yes' else 0)
-    residence_type_val = encoders['Residence_type']['mapping'].get(Residence_type, 0) if 'Residence_type' in encoders else 0
     work_type_val = encoders['work_type']['mapping'].get(work_type, 0) if 'work_type' in encoders else 0
+    residence_type_val = encoders['Residence_type']['mapping'].get(Residence_type, 0) if 'Residence_type' in encoders else 0
     smoking_status_val = encoders['smoking_status']['mapping'].get(smoking_status, 0) if 'smoking_status' in encoders else 0
     
     raw_input_data = np.array([
@@ -215,14 +209,10 @@ if st.button("Predict Stroke Risk", type="primary"):
     # Non-linear penalty for high BMI
     input_df['bmi'] = input_df['bmi'].apply(lambda x: x * 1.0 + (max(0, x - 1.5)**2) if x > 1.5 else x)
     
-    # Custom weighting for binary/categorical features (MATCHING TRAINING WEIGHTS)
-    input_df['hypertension'] = input_df['hypertension'] * 4.0 
-    input_df['heart_disease'] = input_df['heart_disease'] * 4.0 
-    input_df['smoking_status'] = input_df['smoking_status'] * 2.5
-    
-    # WEIGHTS FOR EVER MARRIED AND RESIDENCE TYPE
-    input_df['ever_married'] = input_df['ever_married'] * 1.5
-    input_df['Residence_type'] = input_df['Residence_type'] * 1.5
+    # Custom weighting for binary/categorical features
+    input_df['hypertension'] = input_df['hypertension'] * 2.5
+    input_df['heart_disease'] = input_df['heart_disease'] * 2.5
+    input_df['smoking_status'] = input_df['smoking_status'] * 2.0
     
     input_data = input_df.values
     
@@ -232,19 +222,19 @@ if st.button("Predict Stroke Risk", type="primary"):
     
     # 3. Calculate Heuristic Risk Contribution for Pie Chart (Custom Logic)
     risk_weights = {
-        "Age Risk": 20,  # Increased visual weight
-        "Glucose Risk": 20, # Adjusted visual weight
+        "Age Risk": 10,  
+        "Glucose Risk": 30, # Increased weight for Glucose
         "BMI Risk": 20, 
-        "Heart/HyperTension": 40, # Increased visual weight
+        "Heart/HyperTension": 30, 
         "Lifestyle/Smoking": 10 
     }
     
     # Calculate individual risk scores (0-100) based on critical clinical thresholds
     age_risk_score = min(100, max(0, (age - 45) / (70 - 45) * 100)) 
+    # Glucose Risk: START INCREASING AT 120 mg/dL, max at 223 mg/dL
     glucose_risk_score = min(100, max(0, (avg_glucose_level - 120) / (223 - 120) * 100)) 
     bmi_risk_score = min(100, max(0, (bmi - 25) / (35 - 25) * 100)) 
-    # Emphasize hypertension (0.7) over heart disease (0.3) in the composite score
-    heart_hyper_risk_score = (hypertension_val * 0.7 + heart_disease_val * 0.3) * 100 
+    heart_hyper_risk_score = (hypertension_val * 0.6 + heart_disease_val * 0.4) * 100 
     smoking_risk_map = {0: 0, 1: 75, 2: 100, 3: 50}
     smoking_risk_score = smoking_risk_map.get(smoking_status_val, 0)
     
